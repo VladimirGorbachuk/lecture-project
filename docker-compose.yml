@@ -17,6 +17,8 @@ services:
       - "81:80"
 
   backend:
+    env_file:
+      - ./env/.env.backend
     build:
       context: .
       dockerfile: ./ci-cd/backend.Dockerfile

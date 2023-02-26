@@ -1,24 +1,20 @@
 import React, { useState } from "react";
 import { useContext } from "react";
-import {User, UserNonAuthenticated, Contact} from "../entities/user";
+import {User, UserNonAuthenticated, Contact} from "../../entities/user";
+import { useUserAuthStoreInterface, UserAuthState } from "../../serviceInterfaces/userStore";
 
 
 interface Props {
   children: React.ReactNode;
 }
 
-interface CurrentState {
-  user: User;
-  setLoggedIn(userInfo: User): void;
-  setLoggedOut(): void;
-}
 
 
-const StoreContext = React.createContext<CurrentState>(
+const StoreContext = React.createContext<UserAuthState>(
   {user: {...UserNonAuthenticated }, setLoggedIn: (userInfo: User) => {}, setLoggedOut: ()=>{}}
 );
 
-export const useStore = (): CurrentState => useContext(StoreContext); // to get the context in any component inside provider
+export const useUserAuthStore: useUserAuthStoreInterface = (): UserAuthState => useContext(StoreContext); // to get the context in any component inside provider
 
 export const Provider: React.FC<Props> = ({ children }) => {
   const [user, setUser] = useState({...UserNonAuthenticated});

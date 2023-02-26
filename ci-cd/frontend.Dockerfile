@@ -2,7 +2,7 @@
 FROM node:14.21-alpine3.16 as build
 WORKDIR /app
 ENV PATH /app/node_modules/.bin:$PATH
-COPY ./frontend/package.json /app/
+COPY ./frontend/package.json ./frontend/.env.production.local /app/
 RUN yarn
 COPY ./frontend /app
 RUN yarn build

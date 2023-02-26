@@ -1,20 +1,12 @@
 import React, { useState } from "react";
-
-import {UserAuth, User}  from "../../entities/user"
-import { useAuthenticate } from "../../service/authenticate";
-
 import styles from "./Auth.module.css";
+import {PropsWithUseAuthenticate} from '../../di/propTypes'
 
 
-export interface AuthenticationService {
-    auth(authInfo: UserAuth): Promise<User>;
-  }
-
-
-export function Auth() {
+export function Auth(props: PropsWithUseAuthenticate ) {
   const [loading, setLoading] = useState(false);
 
-  const { user, authenticate, logout } = useAuthenticate();
+  const { user, authenticate, logout } = props.useAuthenticate();
 
   async function handleSubmit(e: React.FormEvent) {
     setLoading(true);
@@ -42,7 +34,7 @@ export function Auth() {
       <label>
         <span>Password</span>
         <input
-          type="text"
+          type="password"
           name="password"
         />
       </label>

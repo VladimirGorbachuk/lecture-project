@@ -1,14 +1,16 @@
 import './App.css';
-import {useStore} from './service/stateStore'
+import { useAuthenticateInjectedCallableType } from './useCases/authenticate'
 import { Auth } from './ui/Auth';
 import { DefaultReactElement } from './ui/Default/DefaultReactElement'
+import {PropsWithUseAuthenticate} from './di/propTypes'
 
-function App() {
-  const state = useStore()
-  if(!state.user.isAuthenticated){
-    console.log(state, "current state")
+function App(props: PropsWithUseAuthenticate) {
+  const authenticationManager = props.useAuthenticate()
+  if(!authenticationManager.user.isAuthenticated){
+    console.log(authenticationManager.user, "current state")
     return (
-      <Auth/>
+      <Auth
+      useAuthenticate={props.useAuthenticate}/>
     )
   }
   return <DefaultReactElement/>
