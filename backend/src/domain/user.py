@@ -1,8 +1,29 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
+
+
+@dataclass
+class Contact:
+    type: str
+    info: str
+    link: str
+
+
+@dataclass
+class CurriculumVitae:
+    id: int
+    title: str
+    text: str
+    image_path: str
 
 
 @dataclass
 class User:
-    username: str
-    password_hash: str
+    login: str
     email: str
+    contact_info: "list[Contact]"
+    whitelist: "list[str]"
+    blacklist: "list[str]"
+    curricullum_vitae_id: Optional[int] = None
+
+

@@ -1,20 +1,20 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TypedDict
+
+from fastapi import Response, Request
+import jwt
 
 from domain.auth import AuthToken, UserInfoInToken
 from exceptions.auth import AccessTokenExpiredException, RefreshTokenExpiredException, TokenInvalidException, CookieWithTokenIsMissingException
 from service_intefaces.auth import (
-    AuthSettings,
     TokenFromRequestCookieGetterInterface,
     TokenToResponseCookieSetterInterface,
     TokenFromResponseCookieRemoverInterface,
     TokenEncoderInterface,
     TokenDecoderInterface,
 )
-
-from fastapi import Response, Request
-import jwt
+from service_settings.auth import AuthServiceSettings
 
 
 class JwtPayloadToEncode(TypedDict):
@@ -30,10 +30,12 @@ class JwtPayloadDecoded(TypedDict):
 
 
 class TokenEncoder(TokenEncoderInterface):
-    def __init__(self, settings: AuthSettings):
+    def __init__(self, settings: AuthServiceSettings):
         self.settings = settings
 
-    def encode_access_token(self, token_info: AuthToken) -> str:
+    def encode_access_token(self, user_info: UserInfoInToken) -> str:
+        access_token_expires_at = datetime.now() + timedelta(seconds=self.settings.AUTH_TOKEN_LIFETIME_SECONDS)
+        token_info = AuthToken(data=user_info, expires_at=access_token_expires_at)
         payload = JwtPayloadToEncode(
             email=token_info.data.email,
             login=token_info.data.login,
@@ -45,7 +47,9 @@ class TokenEncoder(TokenEncoderInterface):
             algorithm = self.settings.ENCODING_ALGORITHM,
         )
     
-    def encode_refresh_token(self, token_info: AuthToken) -> str:
+    def encode_refresh_token(self, user_info: UserInfoInToken) -> str:
+        refresh_token_expires_at = datetime.now() + timedelta(seconds=self.settings.REFRESH_TOKEN_LIFETIME_SECONDS)
+        token_info = AuthToken(data=user_info, expires_at=refresh_token_expires_at)
         payload = JwtPayloadToEncode(
             email=token_info.data.email,
             login=token_info.data.login,
@@ -59,37 +63,41 @@ class TokenEncoder(TokenEncoderInterface):
 
 
 class TokenDecoder(TokenDecoderInterface):
-    def __init__(self, settings: AuthSettings):
+    def __init__(self, settings: AuthServiceSettings):
         self.settings = settings
 
-    def decode_access_token(self, token_encoded_str: str) -> AuthToken:
+    def decode_access_token(self, token_encoded_str: str) -> UserInfoInToken:
         payload: JwtPayloadDecoded = jwt.decode(
             token_encoded_str,
             self.settings.AUTH_SECRET_KEY,
             algorithms=[self.settings.ENCODING_ALGORITHM],
         )
         expires_at = datetime.fromtimestamp(payload["exp"])
-        return AuthToken(expires_at=expires_at, data=UserInfoInToken(email=payload["email"], login=payload["login"]))
+        if expires_at >= datetime.now():
+            raise AccessTokenExpiredException("Access token has been expired")
+        return UserInfoInToken(email=payload["email"], login=payload["login"])
 
 
-    def decode_refresh_token(self, token_encoded_str: str) -> AuthToken:
+    def decode_refresh_token(self, token_encoded_str: str) -> UserInfoInToken:
         payload: JwtPayloadDecoded = jwt.decode(
             token_encoded_str,
             self.settings.AUTH_SECRET_KEY,
             algorithms=[self.settings.ENCODING_ALGORITHM],
         )
         expires_at = datetime.fromtimestamp(payload["exp"])
-        return AuthToken(expires_at=expires_at, data=UserInfoInToken(email=payload["email"], login=payload["login"]))
+        if expires_at >= datetime.now():
+            raise RefreshTokenExpiredException("Refresh token has been expired")
+        return UserInfoInToken(email=payload["email"], login=payload["login"])
 
 
 
 class TokenCookieSetterForFastAPIResponse(TokenToResponseCookieSetterInterface):
-    def __init__(self, settings: AuthSettings, token_encoder: TokenEncoderInterface):
+    def __init__(self, settings: AuthServiceSettings, token_encoder: TokenEncoderInterface):
         self.settings = settings
         self.token_encoder = token_encoder
     
-    def set_access_token_to_response(self, response: Response, token_info: AuthToken) -> Response:
-        encoded_token = self.token_encoder.encode_access_token(token_info)
+    def set_access_token_to_response(self, response: Response, user_info: UserInfoInToken) -> Response:
+        encoded_token = self.token_encoder.encode_access_token(user_info)
         response.set_cookie(
             key=self.settings.ACCESS_TOKEN_KEY,
             value=encoded_token,
@@ -98,8 +106,8 @@ class TokenCookieSetterForFastAPIResponse(TokenToResponseCookieSetterInterface):
         )
         return response
 
-    def set_refresh_token_to_response(self, response: Response, token_info: AuthToken) -> Response:
-        encoded_token = self.token_encoder.encode_refresh_token(token_info)
+    def set_refresh_token_to_response(self, response: Response, user_info: UserInfoInToken) -> Response:
+        encoded_token = self.token_encoder.encode_refresh_token(user_info)
         response.set_cookie(
             key=self.settings.REFRESH_TOKEN_KEY,
             value=encoded_token,
@@ -108,7 +116,7 @@ class TokenCookieSetterForFastAPIResponse(TokenToResponseCookieSetterInterface):
 
 
 class TokenGetterFromFastApiRequest(TokenFromRequestCookieGetterInterface):
-    def __init__(self, settings: AuthSettings, token_decoder: TokenDecoderInterface):
+    def __init__(self, settings: AuthServiceSettings, token_decoder: TokenDecoderInterface):
         self.settings = settings
         self.token_decoder = token_decoder
 
@@ -133,7 +141,7 @@ class TokenGetterFromFastApiRequest(TokenFromRequestCookieGetterInterface):
 
 
 class TokenRemoverFromFastApiResponse(TokenFromResponseCookieRemoverInterface):
-    def __init__(self, settings: AuthSettings):
+    def __init__(self, settings: AuthServiceSettings):
         self.settings = settings
 
     def remove_auth_tokens_from_cookies(self, response: Response) -> Response:

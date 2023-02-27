@@ -6,17 +6,20 @@ from domain.auth import UserAuthenticationInfo, UserInfoInToken
 from serializers.auth import UserAuthenticationInfoSerializer
 from exceptions.auth import BaseAuthTokenException
 from use_cases.auth import AuthenticatorProtocol
+from use_cases.login import LoginManagerProtocol
 
 
 router = APIRouter()
 
 
 @router.post('/login')
-def login(user: UserAuthenticationInfoSerializer, authenticator: AuthenticatorProtocol = Depends()):
-    user_entity = user.to_entity()
-    if user_entity.login != "test" or user_entity.password != "test":
-        raise HTTPException(status_code=401,detail="Bad username or password")
-    user_info = UserInfoInToken(login = "test", email="test@test.test")
+def login(
+    user_auth: UserAuthenticationInfoSerializer,
+    authenticator: AuthenticatorProtocol = Depends(),
+    login_manager: LoginManagerProtocol = Depends(),
+):
+    user_auth_entity = user_auth.to_entity()
+    user_info = login_manager.login(user_auth_entity)
     response = JSONResponse({"msg":"Successfully logged in"})
     response_with_cookies = authenticator.set_auth_tokens(response, auth_info=user_info)
     return response_with_cookies

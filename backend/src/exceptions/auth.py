@@ -20,3 +20,11 @@ class RefreshTokenExpiredException(TokenExpiredException):
 
 class CookieWithTokenIsMissingException(BaseAuthTokenException):
     pass
+
+
+class BaseLoginException(Exception):
+    pass
+
+
+class WrongUserCredentialsException(BaseLoginException):
+    pass

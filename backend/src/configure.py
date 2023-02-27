@@ -3,7 +3,6 @@ import os
 from fastapi import Depends, FastAPI
 
 from service_intefaces.auth import (
-    AuthSettings,
     TokenFromRequestCookieGetterInterface,
     TokenFromResponseCookieRemoverInterface,
     TokenToResponseCookieSetterInterface,
@@ -17,22 +16,11 @@ from service_implementations.auth_cookie import (
     TokenRemoverFromFastApiResponse,
     TokenCookieSetterForFastAPIResponse,
 )
+from service_implementations.creds_repo import LoginStub
+from service_settings.auth import AuthServiceSettings, configure_auth
+from service_settings.login import LoginServiceSettings, configure_login
 from use_cases.auth import AuthenticatorProtocol, Authenticator
-
-
-def configure_auth() -> AuthSettings:
-    return AuthSettings(
-        AUTH_TOKEN_LIFETIME_SECONDS=float(os.environ["AUTH_TOKEN_LIFETIME_SECONDS"]),
-        REFRESH_TOKEN_LIFETIME_SECONDS=float(os.environ["REFRESH_TOKEN_LIFETIME_SECONDS"]),
-        AUTH_SECRET_KEY=os.environ["AUTH_SECRET_KEY"],
-        ENCODING_ALGORITHM=os.environ["ENCODING_ALGORITHM"],
-        SECURE_COOKIE=os.environ["SECURE_COOKIE"]=="True",
-        REFRESH_TOKEN_KEY="refresh_token",
-        ACCESS_TOKEN_KEY="access_token",
-        HTTP_ONLY_COOKIE=os.environ["HTTP_ONLY_COOKIE"]=="True",
-        AUTH_TOKEN_IN_COOKIES=os.environ["AUTH_TOKEN_IN_COOKIES"]=="True",
-        AUTH_TOKEN_CSRF_PROTECT=os.environ["AUTH_TOKEN_CSRF_PROTECT"]=="True",
-    )
+from use_cases.login import LoginManager, LoginManagerProtocol
 
 
 def initialize_authenticator() -> Authenticator:
@@ -43,34 +31,22 @@ def initialize_authenticator() -> Authenticator:
     token_from_response_cookie_remover=TokenRemoverFromFastApiResponse(auth_settings)
     token_to_response_cookie_setter=TokenCookieSetterForFastAPIResponse(auth_settings, token_encoder=token_encoder)
     return Authenticator(
-        auth_settings=auth_settings,
         token_from_request_cookie_getter=token_from_request_cookie_getter,
         token_from_response_cookie_remover=token_from_response_cookie_remover,
         token_to_response_cookie_setter=token_to_response_cookie_setter,
     )
 
 
+def initialize_login_manager() -> LoginManager:
+    login_settings = configure_login()
+    login_service = LoginStub(login_settings)
+    return LoginManager(login_service=login_service)
+
+
 def bind_token_implementations_to_fastapi(app: FastAPI) -> FastAPI:
 
-    app.dependency_overrides[AuthSettings] = lambda: configure_auth()
+    app.dependency_overrides[AuthServiceSettings] = lambda: configure_auth()
     app.dependency_overrides[AuthenticatorProtocol] = lambda: initialize_authenticator()
-    # app.dependency_overrides[TokenFromRequestCookieGetterInterface] = lambda: TokenGetterFromFastApiRequest(
-    #     settings=Depends(AuthSettings),
-    #     token_decoder=Depends(TokenDecoderInterface),
-    # )
-    # app.dependency_overrides[TokenFromResponseCookieRemoverInterface] = lambda: TokenRemoverFromFastApiResponse(
-    #     settings=Depends(AuthSettings),
-    # )
-    # app.dependency_overrides[TokenToResponseCookieSetterInterface] = lambda: TokenCookieSetterForFastAPIResponse(
-    #     settings=Depends(AuthSettings),
-    #     token_encoder=Depends(TokenEncoderInterface),
-    # )
-    # app.dependency_overrides[TokenEncoderInterface] = lambda: TokenEncoder(auth_settings=Depends(AuthSettings))
-    # app.dependency_overrides[TokenDecoderInterface] = lambda: TokenDecoder(auth_settings=Depends(AuthSettings))
-    # app.dependency_overrides[AuthenticatorProtocol] = lambda: Authenticator(
-    #     auth_settings=Depends(AuthSettings),
-    #     token_from_request_cookie_getter=Depends(TokenFromRequestCookieGetterInterface),
-    #     token_from_response_cookie_remover=Depends(TokenFromResponseCookieRemoverInterface),
-    #     token_to_response_cookie_setter=Depends(TokenToResponseCookieSetterInterface),
-    # )
+    app.dependency_overrides[LoginManagerProtocol] = lambda: initialize_login_manager()
+
     return app
